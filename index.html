@@ -1,9 +1,10 @@
+
 <!DOCTYPE html>
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>연구비 확보 게임</title>
+    <title>연구비 확보 게임 - 공중전 버전</title>
     <style>
         body { margin: 0; padding: 20px; background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); display: flex; justify-content: center; align-items: center; min-height: 100vh; font-family: 'Malgun Gothic', sans-serif; overflow: hidden; }
         canvas { border: 4px solid #fff; border-radius: 15px; box-shadow: 0 10px 40px rgba(0,0,0,0.5); background: #87CEEB; display: block; }
@@ -14,7 +15,7 @@
     <div class="ui">
         <div>확보한 연구비: <span id="score">0</span>원</div>
         <div>남은 기회: <span id="lives">3</span></div>
-        <div style="font-size: 14px; margin-top: 5px; color: #ffeb3b;">스페이스바: 점프 (2단 가능)</div>
+        <div style="font-size: 14px; margin-top: 5px; color: #ffeb3b;">🚀 무한 점프! 하늘도 적이 나옵니다</div>
     </div>
     <canvas id="gameCanvas" width="800" height="600"></canvas>
 
@@ -42,8 +43,6 @@
             width: 70,
             height: 90,
             vy: 0,
-            jumps: 0,
-            maxJumps: 2,
             speed: 6
         };
 
@@ -51,10 +50,10 @@
         let coins = [];
         const keys = {};
 
+        // 🚀 무한 점프
         function handleJump() {
-            if (player.jumps < player.maxJumps && gameState.gameRunning) {
-                player.vy = -13;
-                player.jumps++;
+            if (gameState.gameRunning) {
+                player.vy = -12;
             }
         }
 
@@ -79,29 +78,51 @@
             if (keys['ArrowLeft']) player.x = Math.max(0, player.x - player.speed);
             if (keys['ArrowRight']) player.x = Math.min(canvas.width - player.width, player.x + player.speed);
 
-            // 중력
+            // 중력 및 위치 제한
             player.vy += 0.6; 
             player.y += player.vy;
+            
+            // 바닥 제한
             if (player.y >= 450) {
-                player.y = 450; player.vy = 0; player.jumps = 0;
+                player.y = 450;
+                player.vy = 0;
+            }
+            // 천장 제한 (화면 밖으로 못 나가게)
+            if (player.y <= 0) {
+                player.y = 0;
+                player.vy = 0;
             }
 
-            // 장애물(방해 요소) 생성
-            if (Math.random() < 0.015) {
-                enemies.push({ x: canvas.width, y: 490, width: 45, height: 45, speed: 5 + Math.random() * 2 });
+            // 👹 장애물 생성 - 전천후에서 랜덤하게! (y: 0 ~ 500)
+            if (Math.random() < 0.025) {
+                enemies.push({ 
+                    x: canvas.width, 
+                    y: Math.random() * 500, // 핵심 변경: 화면 상단부터 중단까지 랜덤 출현
+                    width: 45, 
+                    height: 45, 
+                    speed: 5 + Math.random() * 2 
+                });
             }
 
-            // 코인(연구비) 생성
+            // 💰 코인 생성 - 전천후 랜덤 (y: 50 ~ 450)
             if (Math.random() < 0.02) {
-                coins.push({ x: canvas.width, y: 200 + Math.random() * 200, width: 40, height: 40, speed: 4 });
+                coins.push({ 
+                    x: canvas.width, 
+                    y: 50 + Math.random() * 400, 
+                    width: 40, 
+                    height: 40, 
+                    speed: 4 
+                });
             }
 
             // 충돌 처리 - 장애물
             enemies.forEach((enemy, index) => {
                 enemy.x -= enemy.speed;
-                const p = 15; 
-                if (player.x + p < enemy.x + enemy.width && player.x + player.width - p > enemy.x &&
-                    player.y + p < enemy.y + enemy.height && player.y + player.height - p > enemy.y) {
+                const p = 15; // 히트박스 보정
+                if (player.x + p < enemy.x + enemy.width && 
+                    player.x + player.width - p > enemy.x &&
+                    player.y + p < enemy.y + enemy.height && 
+                    player.y + player.height - p > enemy.y) {
                     gameState.lives--;
                     enemies.splice(index, 1);
                     if (gameState.lives <= 0) gameState.gameRunning = false;
@@ -109,12 +130,12 @@
                 if (enemy.x < -100) enemies.splice(index, 1);
             });
 
-            // 충돌 처리 - 코인(연구비)
+            // 충돌 처리 - 코인
             coins.forEach((coin, index) => {
                 coin.x -= coin.speed;
                 if (player.x < coin.x + coin.width && player.x + player.width > coin.x &&
                     player.y < coin.y + coin.height && player.y + player.height > coin.y) {
-                    gameState.score += 100000; // 연구비 만원 단위 증가
+                    gameState.score += 100000;
                     coins.splice(index, 1);
                 }
                 if (coin.x < -100) coins.splice(index, 1);
@@ -144,7 +165,7 @@
                 ctx.fillRect(player.x, player.y, player.width, player.height);
             }
 
-            // 장애물
+            // 장애물 (이제 공중에 떠다님)
             ctx.fillStyle = '#FF4757';
             enemies.forEach(en => {
                 ctx.fillRect(en.x, en.y, en.width, en.height);
@@ -154,9 +175,8 @@
                 ctx.fillStyle = '#FF4757';
             });
 
-            // 💰 코인 (연구비 동그라미)
+            // 코인 (연구비)
             coins.forEach(c => {
-                // 노란색 원
                 ctx.beginPath();
                 ctx.fillStyle = '#FDCB6E';
                 ctx.arc(c.x + 20, c.y + 20, 25, 0, Math.PI * 2);
@@ -164,8 +184,6 @@
                 ctx.strokeStyle = '#DAA520';
                 ctx.lineWidth = 3;
                 ctx.stroke();
-
-                // '연구비' 텍스트
                 ctx.fillStyle = '#5D4037';
                 ctx.font = 'bold 12px Arial';
                 ctx.textAlign = 'center';
@@ -183,7 +201,6 @@
                 ctx.font = 'bold 60px Arial';
                 ctx.fillText('GAME OVER', canvas.width/2, canvas.height/2 - 50);
                 
-                // 최종 점수 표시
                 ctx.fillStyle = 'white';
                 ctx.font = 'bold 35px Arial';
                 ctx.fillText('확보된 총 연구비', canvas.width/2, canvas.height/2 + 20);
