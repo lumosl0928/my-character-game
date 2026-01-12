@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>연구비 확보 게임</title>
+    <style>
+        body { margin: 0; padding: 20px; background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); display: flex; justify-content: center; align-items: center; min-height: 100vh; font-family: 'Malgun Gothic', sans-serif; overflow: hidden; }
+        canvas { border: 4px solid #fff; border-radius: 15px; box-shadow: 0 10px 40px rgba(0,0,0,0.5); background: #87CEEB; display: block; }
+        .ui { position: absolute; top: 30px; left: 30px; color: white; font-size: 20px; font-weight: bold; text-shadow: 2px 2px 4px rgba(0,0,0,0.5); z-index: 10; pointer-events: none; }
+    </style>
+</head>
+<body>
+    <div class="ui">
+        <div>확보한 연구비: <span id="score">0</span>원</div>
+        <div>남은 기회: <span id="lives">3</span></div>
+        <div style="font-size: 14px; margin-top: 5px; color: #ffeb3b;">스페이스바: 점프 (2단 가능)</div>
+    </div>
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreEl = document.getElementById('score');
+        const livesEl = document.getElementById('lives');
+
+        // 🖼️ 이미지 설정
+        let isImgLoaded = false;
+        const playerImg = new Image();
+        playerImg.onload = () => { isImgLoaded = true; };
+        playerImg.src = 'myCharacter.png'; 
+
+        let gameState = {
+            score: 0,
+            lives: 3,
+            gameRunning: true
+        };
+
+        const player = {
+            x: 100,
+            y: 450,
+            width: 70,
+            height: 90,
+            vy: 0,
+            jumps: 0,
+            maxJumps: 2,
+            speed: 6
+        };
+
+        let enemies = [];
+        let coins = [];
+        const keys = {};
+
+        function handleJump() {
+            if (player.jumps < player.maxJumps && gameState.gameRunning) {
+                player.vy = -13;
+                player.jumps++;
+            }
+        }
+
+        document.addEventListener('keydown', (e) => {
+            keys[e.code] = true;
+            if (e.code === 'Space' || e.code === 'ArrowUp') handleJump();
+            if (e.code === 'KeyR' && !gameState.gameRunning) resetGame();
+        });
+        document.addEventListener('keyup', (e) => keys[e.code] = false);
+        canvas.addEventListener('mousedown', handleJump);
+
+        function resetGame() {
+            gameState = { score: 0, lives: 3, gameRunning: true };
+            player.x = 100; player.y = 450; player.vy = 0;
+            enemies = []; coins = [];
+        }
+
+        function update() {
+            if (!gameState.gameRunning) return;
+
+            // 좌우 이동
+            if (keys['ArrowLeft']) player.x = Math.max(0, player.x - player.speed);
+            if (keys['ArrowRight']) player.x = Math.min(canvas.width - player.width, player.x + player.speed);
+
+            // 중력
+            player.vy += 0.6; 
+            player.y += player.vy;
+            if (player.y >= 450) {
+                player.y = 450; player.vy = 0; player.jumps = 0;
+            }
+
+            // 장애물(방해 요소) 생성
+            if (Math.random() < 0.015) {
+                enemies.push({ x: canvas.width, y: 490, width: 45, height: 45, speed: 5 + Math.random() * 2 });
+            }
+
+            // 코인(연구비) 생성
+            if (Math.random() < 0.02) {
+                coins.push({ x: canvas.width, y: 200 + Math.random() * 200, width: 40, height: 40, speed: 4 });
+            }
+
+            // 충돌 처리 - 장애물
+            enemies.forEach((enemy, index) => {
+                enemy.x -= enemy.speed;
+                const p = 15; 
+                if (player.x + p < enemy.x + enemy.width && player.x + player.width - p > enemy.x &&
+                    player.y + p < enemy.y + enemy.height && player.y + player.height - p > enemy.y) {
+                    gameState.lives--;
+                    enemies.splice(index, 1);
+                    if (gameState.lives <= 0) gameState.gameRunning = false;
+                }
+                if (enemy.x < -100) enemies.splice(index, 1);
+            });
+
+            // 충돌 처리 - 코인(연구비)
+            coins.forEach((coin, index) => {
+                coin.x -= coin.speed;
+                if (player.x < coin.x + coin.width && player.x + player.width > coin.x &&
+                    player.y < coin.y + coin.height && player.y + player.height > coin.y) {
+                    gameState.score += 100000; // 연구비 만원 단위 증가
+                    coins.splice(index, 1);
+                }
+                if (coin.x < -100) coins.splice(index, 1);
+            });
+
+            scoreEl.textContent = gameState.score.toLocaleString();
+            livesEl.textContent = gameState.lives;
+        }
+
+        function render() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 배경 구름
+            ctx.fillStyle = "rgba(255,255,255,0.6)";
+            ctx.beginPath(); ctx.arc(200, 150, 40, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(240, 140, 50, 0, Math.PI*2); ctx.fill();
+
+            // 땅
+            ctx.fillStyle = '#4CAF50';
+            ctx.fillRect(0, 540, canvas.width, 60);
+
+            // 플레이어
+            if (isImgLoaded) {
+                ctx.drawImage(playerImg, player.x, player.y, player.width, player.height);
+            } else {
+                ctx.fillStyle = '#FF6B6B';
+                ctx.fillRect(player.x, player.y, player.width, player.height);
+            }
+
+            // 장애물
+            ctx.fillStyle = '#FF4757';
+            enemies.forEach(en => {
+                ctx.fillRect(en.x, en.y, en.width, en.height);
+                ctx.fillStyle = 'white';
+                ctx.font = '20px Arial';
+                ctx.fillText('⚡', en.x + 12, en.y + 30);
+                ctx.fillStyle = '#FF4757';
+            });
+
+            // 💰 코인 (연구비 동그라미)
+            coins.forEach(c => {
+                // 노란색 원
+                ctx.beginPath();
+                ctx.fillStyle = '#FDCB6E';
+                ctx.arc(c.x + 20, c.y + 20, 25, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = '#DAA520';
+                ctx.lineWidth = 3;
+                ctx.stroke();
+
+                // '연구비' 텍스트
+                ctx.fillStyle = '#5D4037';
+                ctx.font = 'bold 12px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('연구비', c.x + 20, c.y + 20);
+            });
+
+            // 게임 오버 화면
+            if (!gameState.gameRunning) {
+                ctx.fillStyle = 'rgba(0,0,0,0.85)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                ctx.textAlign = 'center';
+                ctx.fillStyle = '#FF4757';
+                ctx.font = 'bold 60px Arial';
+                ctx.fillText('GAME OVER', canvas.width/2, canvas.height/2 - 50);
+                
+                // 최종 점수 표시
+                ctx.fillStyle = 'white';
+                ctx.font = 'bold 35px Arial';
+                ctx.fillText('확보된 총 연구비', canvas.width/2, canvas.height/2 + 20);
+                ctx.fillStyle = '#FFD93D';
+                ctx.font = 'bold 45px Arial';
+                ctx.fillText(gameState.score.toLocaleString() + ' 원', canvas.width/2, canvas.height/2 + 80);
+                
+                ctx.fillStyle = 'white';
+                ctx.font = '20px Arial';
+                ctx.fillText('R키를 눌러 다시 도전하세요!', canvas.width/2, canvas.height/2 + 150);
+            }
+
+            update();
+            requestAnimationFrame(render);
+        }
+
+        render();
+    </script>
+</body>
+</html>
